@@ -63,40 +63,38 @@ const artPieces = [
   }
 ];
 
-// Smooth scroll progress indicator
+// Enhanced scroll progress
 const ScrollProgress = () => {
   const [progress, setProgress] = useState(0);
   const [currentSection, setCurrentSection] = useState(0);
-  const animationFrame = useRef(null);
-  const currentProgress = useRef(0);
-  const targetProgress = useRef(0);
 
   useEffect(() => {
+    let ticking = false;
+
     const updateProgress = () => {
       const scrolled = window.scrollY;
       const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-      targetProgress.current = Math.min((scrolled / maxScroll) * 100, 100);
+      const scrollProgress = Math.min((scrolled / maxScroll) * 100, 100);
+      setProgress(scrollProgress);
       
       const sectionHeight = window.innerHeight;
       const currentSectionIndex = Math.floor(scrolled / sectionHeight);
       setCurrentSection(Math.min(currentSectionIndex, artPieces.length));
+      
+      ticking = false;
     };
 
-    const animate = () => {
-      currentProgress.current += (targetProgress.current - currentProgress.current) * 0.1;
-      setProgress(currentProgress.current);
-      animationFrame.current = requestAnimationFrame(animate);
-    };
-
-    window.addEventListener('scroll', updateProgress, { passive: true });
-    animate();
-    
-    return () => {
-      window.removeEventListener('scroll', updateProgress);
-      if (animationFrame.current) {
-        cancelAnimationFrame(animationFrame.current);
+    const handleScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(updateProgress);
+        ticking = true;
       }
     };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    updateProgress();
+    
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   return (
@@ -123,108 +121,221 @@ const ScrollProgress = () => {
   );
 };
 
-// Optimized art section with smooth animations
+// Ultra-smooth art section with advanced transitions
 const ArtSection = ({ art, index }) => {
   const sectionRef = useRef(null);
   const imageContainerRef = useRef(null);
   const imageRef = useRef(null);
   const contentRef = useRef(null);
+  const overlayRef = useRef(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const mousePos = useRef({ x: 0, y: 0, currentX: 0, currentY: 0 });
-  const rafId = useRef(null);
 
   useEffect(() => {
     const section = sectionRef.current;
     const imageContainer = imageContainerRef.current;
+    const image = imageRef.current;
     const content = contentRef.current;
+    const overlay = overlayRef.current;
 
-    if (!section || !imageContainer || !content) return;
+    if (!section || !imageContainer || !image || !content || !overlay) return;
 
-    // Smooth mouse parallax
+    // Advanced mouse parallax with momentum
+    let mouseX = 0;
+    let mouseY = 0;
+    let targetX = 0;
+    let targetY = 0;
+
     const handleMouseMove = (e) => {
       const rect = section.getBoundingClientRect();
-      mousePos.current.x = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
-      mousePos.current.y = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+      targetX = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+      targetY = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
     };
 
-    const updateParallax = () => {
-      mousePos.current.currentX += (mousePos.current.x - mousePos.current.currentX) * 0.1;
-      mousePos.current.currentY += (mousePos.current.y - mousePos.current.currentY) * 0.1;
+    const animateParallax = () => {
+      mouseX += (targetX - mouseX) * 0.05;
+      mouseY += (targetY - mouseY) * 0.05;
       
       gsap.set(imageContainer, {
-        x: mousePos.current.currentX * 15,
-        y: mousePos.current.currentY * 15,
-        rotationY: mousePos.current.currentX * 2,
-        rotationX: mousePos.current.currentY * 2,
+        x: mouseX * 15,
+        y: mouseY * 15,
+        rotationX: mouseY * 2,
+        rotationY: mouseX * 2,
+        transformPerspective: 1000,
+        transformOrigin: "center center"
       });
       
       gsap.set(content, {
-        x: mousePos.current.currentX * 5,
-        y: mousePos.current.currentY * 5,
+        x: mouseX * 8,
+        y: mouseY * 8
       });
 
-      rafId.current = requestAnimationFrame(updateParallax);
+      requestAnimationFrame(animateParallax);
     };
 
     section.addEventListener('mousemove', handleMouseMove);
-    updateParallax();
+    animateParallax();
 
-    // OPTIMIZED SCROLL ANIMATIONS
+    // **ENHANCED SCROLL TRANSITIONS**
     
-    // Simple fade in
-    gsap.fromTo(imageContainer,
-      { opacity: 0, scale: 0.9 },
-      {
-        opacity: 1,
-        scale: 1,
-        duration: 1,
-        ease: 'power2.out',
-        scrollTrigger: {
-          trigger: section,
-          start: 'top 80%',
-          toggleActions: 'play none none reverse'
-        }
+    // 1. Initial scale-up effect when scrolling starts
+    ScrollTrigger.create({
+      trigger: section,
+      start: 'top bottom',
+      end: 'top 70%',
+      scrub: 0.5,
+      onUpdate: (self) => {
+        const progress = self.progress;
+        // Image grows larger as it enters viewport
+        const scale = gsap.utils.interpolate(0.8, 1.15, progress);
+        const opacity = gsap.utils.interpolate(0, 1, progress);
+        
+        gsap.set(imageContainer, {
+          scale: scale,
+          opacity: opacity,
+          ease: 'power2.out'
+        });
       }
-    );
+    });
 
-    // Main scroll effect - simplified for performance
-    gsap.timeline({
-      scrollTrigger: {
-        trigger: section,
-        start: 'top bottom',
-        end: 'bottom top',
-        scrub: 1,
-      }
-    })
-    .fromTo(imageContainer, 
-      { y: -50 },
-      { y: 100, ease: 'none' }
-    )
-    .fromTo(imageContainer,
-      { scale: 1 },
-      { scale: 1.1, ease: 'power1.inOut' },
-      0
-    );
+    // 2. Dramatic scale and position transition during scroll
+    ScrollTrigger.create({
+      trigger: section,
+      start: 'top 70%',
+      end: 'bottom 30%',
+      scrub: 1,
+      onUpdate: (self) => {
+        const progress = self.progress;
+        
+        // More dramatic scaling: grows bigger first, then shrinks
+        const scale = progress < 0.3 
+          ? gsap.utils.interpolate(1.15, 1.4, progress / 0.3)  // Grow larger
+          : gsap.utils.interpolate(1.4, 0.6, (progress - 0.3) / 0.7); // Then shrink
+        
+        // Dynamic opacity with peak visibility
+        const opacity = progress < 0.5
+          ? gsap.utils.interpolate(1, 1, progress / 0.5)
+          : gsap.utils.interpolate(1, 0.2, (progress - 0.5) / 0.5);
+        
+        // Smooth Y translation with acceleration
+        const yTranslation = progress * progress * 200; // Quadratic easing
+        
+        // Rotation for depth effect
+        const rotation = progress * 15;
+        
+        gsap.set(imageContainer, {
+          scale: scale,
+          opacity: opacity,
+          y: yTranslation,
+          rotationX: rotation * 0.5,
+          z: progress * -300, // 3D depth
+          ease: 'none'
+        });
 
-    // Content animation - simplified
-    gsap.timeline({
-      scrollTrigger: {
-        trigger: section,
-        start: 'top 60%',
-        toggleActions: 'play none none reverse'
+        // Content moves independently for parallax depth
+        gsap.set(content, {
+          opacity: 1 - (progress * 1.2),
+          y: progress * 150,
+          scale: 1 - (progress * 0.3),
+          ease: 'none'
+        });
+
+        // Overlay effect for focus
+        gsap.set(overlay, {
+          opacity: progress * 0.7,
+          ease: 'none'
+        });
       }
-    })
-    .fromTo(content,
-      { opacity: 0, y: 30 },
-      { opacity: 1, y: 0, duration: 0.8, ease: 'power2.out' }
-    );
+    });
+
+    // 3. Exit transition - smooth fade out
+    ScrollTrigger.create({
+      trigger: section,
+      start: 'bottom 30%',
+      end: 'bottom top',
+      scrub: 0.8,
+      onUpdate: (self) => {
+        const progress = self.progress;
+        
+        gsap.set(imageContainer, {
+          scale: gsap.utils.interpolate(0.6, 0.3, progress),
+          opacity: gsap.utils.interpolate(0.2, 0, progress),
+          y: gsap.utils.interpolate(200, 400, progress),
+          rotationX: gsap.utils.interpolate(15, 45, progress),
+          z: gsap.utils.interpolate(-300, -800, progress),
+          ease: 'none'
+        });
+      }
+    });
+
+    // 4. Smooth entrance animation
+    ScrollTrigger.create({
+      trigger: section,
+      start: 'top 95%',
+      toggleActions: 'play none none reverse',
+      onEnter: () => {
+        const tl = gsap.timeline();
+        
+        // Reset transforms
+        gsap.set(imageContainer, {
+          scale: 0.8,
+          opacity: 0,
+          y: 100,
+          rotationX: 0,
+          rotationY: 0,
+          z: 0
+        });
+
+        gsap.set(content, {
+          opacity: 0,
+          y: 80,
+          scale: 0.9
+        });
+
+        // Animate in
+        tl.to(imageContainer, {
+          scale: 1.15,
+          opacity: 1,
+          y: 0,
+          duration: 2.5,
+          ease: 'power3.out'
+        })
+        .to(content, {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          duration: 2,
+          ease: 'power2.out'
+        }, '-=2');
+      }
+    });
+
+    // 5. Advanced content fade with stagger
+    ScrollTrigger.create({
+      trigger: section,
+      start: 'top 50%',
+      end: 'top 20%',
+      scrub: 1.5,
+      onUpdate: (self) => {
+        const progress = self.progress;
+        
+        // Staggered fade for content elements
+        const elements = content.querySelectorAll('.content-element');
+        elements.forEach((el, i) => {
+          const delay = i * 0.1;
+          const elementProgress = Math.max(0, Math.min(1, (progress - delay) / (1 - delay)));
+          
+          gsap.set(el, {
+            opacity: 1 - (elementProgress * 0.9),
+            y: elementProgress * 60,
+            scale: 1 - (elementProgress * 0.1),
+            ease: 'none'
+          });
+        });
+      }
+    });
 
     return () => {
       section.removeEventListener('mousemove', handleMouseMove);
-      if (rafId.current) {
-        cancelAnimationFrame(rafId.current);
-      }
-      ScrollTrigger.getAll().forEach(st => st.kill());
     };
   }, []);
 
@@ -234,6 +345,7 @@ const ArtSection = ({ art, index }) => {
 
   return (
     <div ref={sectionRef} className="art-section">
+      {/* Enhanced image container with 3D transforms */}
       <div ref={imageContainerRef} className="image-container">
         <div className="image-wrapper">
           <div 
@@ -244,35 +356,38 @@ const ArtSection = ({ art, index }) => {
               src={art.src}
               alt={art.title}
               onLoad={handleImageLoad}
-              loading="lazy"
             />
           </div>
-          <div className="image-overlay" />
+          <div ref={overlayRef} className="image-overlay" />
+          <div className="depth-layers">
+            <div className="depth-layer layer-1"></div>
+            <div className="depth-layer layer-2"></div>
+            <div className="depth-layer layer-3"></div>
+          </div>
         </div>
       </div>
 
-      {/* Enhanced content panel with GUARANTEED visibility */}
+      {/* Enhanced content panel with staggered elements */}
       <div ref={contentRef} className="content-panel">
-        <div className="panel-backdrop"></div>
         <div className="panel-inner">
-          <div className="content-header">
+          <div className="content-header content-element">
             <div className="artwork-number">
               {String(index + 1).padStart(2, '0')} / {String(artPieces.length).padStart(2, '0')}
             </div>
             <div className="artwork-year">{art.year}</div>
           </div>
           
-          <div className="content-main">
+          <div className="content-main content-element">
             <h1 className="artwork-title">{art.title}</h1>
             <p className="artwork-medium">{art.medium}</p>
             <p className="artwork-size">{art.size}</p>
           </div>
           
-          <div className="content-description">
+          <div className="content-description content-element">
             <p>{art.description}</p>
           </div>
           
-          <div className="content-technique">
+          <div className="content-technique content-element">
             <span className="technique-label">Technique</span>
             <p className="technique-description">{art.technique}</p>
           </div>
@@ -282,7 +397,7 @@ const ArtSection = ({ art, index }) => {
   );
 };
 
-// Hero section
+// Hero section with smooth parallax
 const HeroSection = () => {
   const heroRef = useRef(null);
   const titleRef = useRef(null);
@@ -292,65 +407,74 @@ const HeroSection = () => {
 
   useEffect(() => {
     // Entrance animation
-    const tl = gsap.timeline({ delay: 0.5 });
+    const tl = gsap.timeline({ delay: 0.8 });
     
     tl.fromTo(titleRef.current.children, 
-      { opacity: 0, y: 100 },
+      { opacity: 0, y: 120, rotationX: 45 },
       { 
         opacity: 1, 
-        y: 0,
-        duration: 1.5, 
+        y: 0, 
+        rotationX: 0,
+        duration: 2.5, 
         ease: 'power3.out',
-        stagger: 0.2
+        stagger: 0.15
       }
     )
     .fromTo(subtitleRef.current,
-      { opacity: 0, y: 50 },
-      { opacity: 1, y: 0, duration: 1.2, ease: 'power2.out' },
-      '-=1'
+      { opacity: 0, y: 50, scale: 0.8 },
+      { opacity: 1, y: 0, scale: 1, duration: 2, ease: 'power2.out' },
+      '-=1.8'
     )
     .fromTo(bioRef.current.children,
-      { opacity: 0, y: 30 },
+      { opacity: 0, y: 30, x: -30 },
       { 
         opacity: 1, 
-        y: 0,
-        duration: 1, 
+        y: 0, 
+        x: 0,
+        duration: 1.8, 
         ease: 'power2.out',
         stagger: 0.1 
       },
-      '-=0.8'
+      '-=1.5'
     )
     .fromTo(scrollHintRef.current,
-      { opacity: 0, y: 20 },
-      { opacity: 1, y: 0, duration: 1, ease: 'power2.out' },
-      '-=0.5'
+      { opacity: 0, y: 20, scale: 0.8 },
+      { opacity: 1, y: 0, scale: 1, duration: 1.5, ease: 'power2.out' },
+      '-=1.2'
     );
 
-    // Parallax on scroll
-    gsap.to(titleRef.current, {
-      y: 150,
-      opacity: 0,
-      ease: 'none',
-      scrollTrigger: {
-        trigger: heroRef.current,
-        start: 'top top',
-        end: 'bottom top',
-        scrub: 1
+    // Enhanced parallax with momentum
+    ScrollTrigger.create({
+      trigger: heroRef.current,
+      start: 'top top',
+      end: 'bottom top',
+      scrub: 0.5,
+      onUpdate: (self) => {
+        const progress = self.progress;
+        const easedProgress = gsap.utils.interpolate(0, 1, progress * progress);
+        
+        gsap.set(titleRef.current, {
+          y: easedProgress * 200,
+          opacity: 1 - (easedProgress * 1.5),
+          scale: 1 - (easedProgress * 0.3),
+          rotationX: easedProgress * 30,
+          ease: 'none'
+        });
+        
+        gsap.set([subtitleRef.current, bioRef.current], {
+          y: easedProgress * 120,
+          opacity: 1 - (easedProgress * 1.2),
+          scale: 1 - (easedProgress * 0.2),
+          ease: 'none'
+        });
+        
+        gsap.set(scrollHintRef.current, {
+          opacity: 1 - (easedProgress * 3),
+          y: easedProgress * 50,
+          ease: 'none'
+        });
       }
     });
-
-    gsap.to([subtitleRef.current, bioRef.current], {
-      y: 100,
-      opacity: 0,
-      ease: 'none',
-      scrollTrigger: {
-        trigger: heroRef.current,
-        start: 'top top',
-        end: 'bottom top',
-        scrub: 1
-      }
-    });
-
   }, []);
 
   return (
@@ -358,12 +482,12 @@ const HeroSection = () => {
       <div className="hero-background">
         <div className="hero-gradient" />
         <div className="hero-particles">
-          {[...Array(30)].map((_, i) => (
+          {[...Array(50)].map((_, i) => (
             <div key={i} className="particle" style={{
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
               animationDelay: `${Math.random() * 10}s`,
-              animationDuration: `${15 + Math.random() * 10}s`
+              animationDuration: `${10 + Math.random() * 20}s`
             }} />
           ))}
         </div>
@@ -404,21 +528,24 @@ const Footer = () => {
   const footerRef = useRef(null);
 
   useEffect(() => {
-    gsap.fromTo(footerRef.current.children,
-      { opacity: 0, y: 50 },
-      { 
-        opacity: 1, 
-        y: 0,
-        duration: 1.2, 
-        ease: 'power2.out',
-        stagger: 0.2,
-        scrollTrigger: {
-          trigger: footerRef.current,
-          start: 'top 80%',
-          toggleActions: 'play none none reverse'
-        }
+    ScrollTrigger.create({
+      trigger: footerRef.current,
+      start: 'top 80%',
+      toggleActions: 'play none none reverse',
+      onEnter: () => {
+        gsap.fromTo(footerRef.current.children,
+          { opacity: 0, y: 80, scale: 0.95 },
+          { 
+            opacity: 1, 
+            y: 0, 
+            scale: 1,
+            duration: 2.5, 
+            ease: 'power2.out',
+            stagger: 0.2
+          }
+        );
       }
-    );
+    });
   }, []);
 
   return (
@@ -467,39 +594,41 @@ const Footer = () => {
   );
 };
 
-// Cursor system
+// Enhanced cursor system
 const CursorSystem = () => {
   const cursorRef = useRef(null);
   const followerRef = useRef(null);
-  const pos = useRef({ x: 0, y: 0, followerX: 0, followerY: 0 });
-  const rafId = useRef(null);
 
   useEffect(() => {
     const cursor = cursorRef.current;
     const follower = followerRef.current;
     if (!cursor || !follower) return;
 
+    let mouseX = 0;
+    let mouseY = 0;
+    let cursorX = 0;
+    let cursorY = 0;
+
     const moveCursor = (e) => {
-      pos.current.x = e.clientX;
-      pos.current.y = e.clientY;
+      mouseX = e.clientX;
+      mouseY = e.clientY;
     };
 
-    const animate = () => {
-      pos.current.followerX += (pos.current.x - pos.current.followerX) * 0.1;
-      pos.current.followerY += (pos.current.y - pos.current.followerY) * 0.1;
+    const animateCursor = () => {
+      cursorX += (mouseX - cursorX) * 0.1;
+      cursorY += (mouseY - cursorY) * 0.1;
       
-      cursor.style.transform = `translate(${pos.current.x - 4}px, ${pos.current.y - 4}px)`;
-      follower.style.transform = `translate(${pos.current.followerX - 15}px, ${pos.current.followerY - 15}px)`;
+      gsap.set(cursor, { x: mouseX, y: mouseY });
+      gsap.set(follower, { x: cursorX, y: cursorY });
       
-      rafId.current = requestAnimationFrame(animate);
+      requestAnimationFrame(animateCursor);
     };
 
-    document.addEventListener('mousemove', moveCursor);
-    animate();
+    document.addEventListener('mousemove', moveCursor, { passive: true });
+    animateCursor();
 
     return () => {
       document.removeEventListener('mousemove', moveCursor);
-      if (rafId.current) cancelAnimationFrame(rafId.current);
     };
   }, []);
 
@@ -513,23 +642,20 @@ const CursorSystem = () => {
 
 // Main App
 const App = () => {
+  const mainRef = useRef(null);
+
   useEffect(() => {
-    // Configure GSAP for performance
     gsap.config({ 
       force3D: true,
       nullTargetWarn: false
     });
     
-    // Setup ScrollTrigger
-    ScrollTrigger.config({
-      limitCallbacks: true,
-      syncInterval: 40
-    });
+    // Smooth scrolling setup
+    gsap.registerPlugin(ScrollTrigger);
+    ScrollTrigger.normalizeScroll(true);
     
-    // Refresh on load
-    window.addEventListener('load', () => {
-      ScrollTrigger.refresh();
-    });
+    document.body.style.scrollbarWidth = 'none';
+    document.body.style.msOverflowStyle = 'none';
 
     return () => {
       ScrollTrigger.getAll().forEach(trigger => trigger.kill());
@@ -563,33 +689,36 @@ const App = () => {
           line-height: 1.5;
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
+          will-change: scroll-position;
         }
 
-        /* Cursor styles */
         .cursor {
           position: fixed;
-          width: 8px;
-          height: 8px;
+          top: 0;
+          left: 0;
+          width: 6px;
+          height: 6px;
           background: #d4af37;
           border-radius: 50%;
           pointer-events: none;
           z-index: 10000;
+          transform: translate(-50%, -50%);
           mix-blend-mode: difference;
-          will-change: transform;
         }
 
         .cursor-follower {
           position: fixed;
-          width: 30px;
-          height: 30px;
+          top: 0;
+          left: 0;
+          width: 25px;
+          height: 25px;
           border: 1px solid rgba(212, 175, 55, 0.4);
           border-radius: 50%;
           pointer-events: none;
           z-index: 9999;
-          will-change: transform;
+          transform: translate(-50%, -50%);
         }
 
-        /* Scroll progress */
         .scroll-system {
           position: fixed;
           right: 30px;
@@ -619,11 +748,11 @@ const App = () => {
           width: 100%;
           background: linear-gradient(180deg, #d4af37 0%, #f4d03f 100%);
           border-radius: 1px;
-          transition: none;
+          transition: height 0.1s ease-out;
         }
 
         .progress-text {
-          color: rgba(255,255,255,0.5);
+          color: rgba(255,255,255,0.6);
           font-size: 10px;
           font-weight: 300;
           letter-spacing: 1px;
@@ -663,7 +792,6 @@ const App = () => {
           text-transform: uppercase;
         }
 
-        /* Hero section */
         .hero-section {
           height: 100vh;
           position: relative;
@@ -671,6 +799,7 @@ const App = () => {
           align-items: center;
           justify-content: center;
           overflow: hidden;
+          perspective: 1000px;
         }
 
         .hero-background {
@@ -688,8 +817,8 @@ const App = () => {
           right: 0;
           bottom: 0;
           background: 
-            radial-gradient(circle at 25% 25%, rgba(212, 175, 55, 0.1) 0%, transparent 70%),
-            radial-gradient(circle at 75% 75%, rgba(244, 208, 63, 0.05) 0%, transparent 70%),
+            radial-gradient(circle at 25% 25%, rgba(212, 175, 55, 0.12) 0%, transparent 70%),
+            radial-gradient(circle at 75% 75%, rgba(244, 208, 63, 0.08) 0%, transparent 70%),
             linear-gradient(135deg, #0a0a0a 0%, #1a1612 50%, #0a0a0a 100%);
         }
 
@@ -713,7 +842,7 @@ const App = () => {
 
         @keyframes float {
           0%, 100% { transform: translateY(0) scale(1); opacity: 0.3; }
-          50% { transform: translateY(-20px) scale(1.2); opacity: 0.6; }
+          50% { transform: translateY(-20px) scale(1.2); opacity: 0.8; }
         }
 
         .hero-content {
@@ -730,6 +859,7 @@ const App = () => {
           letter-spacing: 0.1em;
           margin-bottom: 2rem;
           line-height: 0.9;
+          perspective: 800px;
         }
 
         .title-line {
@@ -738,6 +868,7 @@ const App = () => {
           background-clip: text;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
+          transform-style: preserve-3d;
         }
 
         .hero-subtitle {
@@ -803,17 +934,16 @@ const App = () => {
 
         @keyframes bounce {
           0%, 20%, 50%, 80%, 100% {
-            transform: translateY(0);
+            transform: translateX(-50%) translateY(0);
           }
           40% {
-            transform: translateY(-10px);
+            transform: translateX(-50%) translateY(-12px);
           }
           60% {
-            transform: translateY(-5px);
+            transform: translateX(-50%) translateY(-6px);
           }
         }
 
-        /* Art section */
         .art-section {
           height: 100vh;
           width: 100vw;
@@ -822,7 +952,8 @@ const App = () => {
           align-items: center;
           justify-content: center;
           padding: 40px;
-          perspective: 1000px;
+          perspective: 2000px;
+          transform-style: preserve-3d;
         }
 
         .image-container {
@@ -835,6 +966,7 @@ const App = () => {
           align-items: center;
           justify-content: center;
           will-change: transform;
+          transform-style: preserve-3d;
         }
 
         .image-wrapper {
@@ -843,8 +975,9 @@ const App = () => {
           position: relative;
           border-radius: 15px;
           overflow: hidden;
+          transform-style: preserve-3d;
           box-shadow: 
-            0 25px 50px rgba(0,0,0,0.3),
+            0 25px 50px rgba(0,0,0,0.4),
             0 0 0 1px rgba(255,255,255,0.05);
         }
 
@@ -852,6 +985,7 @@ const App = () => {
           width: 100%;
           height: 100%;
           position: relative;
+          transform-style: preserve-3d;
         }
 
         .artwork-image.loading {
@@ -864,6 +998,7 @@ const App = () => {
           object-fit: cover;
           object-position: center;
           display: block;
+          transform-style: preserve-3d;
         }
 
         .image-overlay {
@@ -872,50 +1007,70 @@ const App = () => {
           left: 0;
           right: 0;
           bottom: 0;
-          background: linear-gradient(45deg, rgba(0,0,0,0.05) 0%, transparent 50%);
+          background: 
+            linear-gradient(45deg, rgba(0,0,0,0.1) 0%, transparent 50%, rgba(0,0,0,0.05) 100%);
           pointer-events: none;
           z-index: 2;
         }
 
-        /* FIXED CONTENT PANEL - GUARANTEED VISIBILITY */
-        .content-panel {
-          position: absolute;
-          bottom: 50px;
-          left: 50%;
-          transform: translateX(-50%);
-          z-index: 10;
-          width: 90%;
-          max-width: 650px;
-          border-radius: 20px;
-          overflow: hidden;
-          will-change: transform;
-          box-shadow: 
-            0 20px 40px rgba(0,0,0,0.9),
-            0 10px 20px rgba(0,0,0,0.8),
-            0 0 0 1px rgba(212, 175, 55, 0.2),
-            inset 0 0 0 1px rgba(255,255,255,0.05);
-        }
-
-        .panel-backdrop {
+        .depth-layers {
           position: absolute;
           top: 0;
           left: 0;
           right: 0;
           bottom: 0;
-          background: #000000;
-          opacity: 0.9;
+          pointer-events: none;
+        }
+
+        .depth-layer {
+          position: absolute;
+          top: -5%;
+          left: -5%;
+          right: -5%;
+          bottom: -5%;
+          border-radius: 15px;
+          opacity: 0;
+          transition: opacity 0.3s ease;
+        }
+
+        .layer-1 {
+          background: linear-gradient(45deg, rgba(212, 175, 55, 0.1), transparent);
+          transform: translateZ(-10px);
+        }
+
+        .layer-2 {
+          background: linear-gradient(135deg, rgba(244, 208, 63, 0.05), transparent);
+          transform: translateZ(-20px);
+        }
+
+        .layer-3 {
+          background: linear-gradient(225deg, rgba(255, 255, 255, 0.02), transparent);
+          transform: translateZ(-30px);
+        }
+
+        .content-panel {
+          position: absolute;
+          bottom: 50px;
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 3;
+          width: 90%;
+          max-width: 650px;
+          backdrop-filter: blur(30px);
+          background: rgba(0,0,0,0.5);
+          border-radius: 20px;
+          border: 1px solid rgba(255,255,255,0.1);
+          will-change: transform;
+          transform-style: preserve-3d;
         }
 
         .panel-inner {
-          position: relative;
           padding: 35px 40px;
           text-align: center;
-          background: linear-gradient(135deg, 
-            rgba(10, 10, 10, 0.95) 0%, 
-            rgba(20, 18, 15, 0.95) 50%, 
-            rgba(10, 10, 10, 0.95) 100%);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
+        }
+
+        .content-element {
+          will-change: transform, opacity;
         }
 
         .content-header {
@@ -926,21 +1081,20 @@ const App = () => {
         }
 
         .artwork-number {
-          color: #d4af37;
+          color: rgba(212, 175, 55, 0.8);
           font-size: 12px;
           letter-spacing: 0.1em;
-          font-weight: 400;
+          font-weight: 300;
         }
 
         .artwork-year {
-          background: rgba(212, 175, 55, 0.15);
-          color: #f4d03f;
+          background: rgba(212, 175, 55, 0.1);
+          color: #d4af37;
           padding: 6px 12px;
           border-radius: 12px;
           font-size: 11px;
           letter-spacing: 0.1em;
-          border: 1px solid rgba(212, 175, 55, 0.3);
-          font-weight: 500;
+          border: 1px solid rgba(212, 175, 55, 0.2);
         }
 
         .content-main {
@@ -949,8 +1103,8 @@ const App = () => {
 
         .artwork-title {
           font-family: 'Playfair Display', serif;
-          color: #ffffff;
-          text-shadow: 2px 2px 10px rgba(0,0,0,0.8);
+          color: white;
+          text-shadow: 2px 2px 15px rgba(0,0,0,0.8);
           margin-bottom: 15px;
           font-weight: 400;
           font-size: clamp(2.2rem, 5vw, 3.5rem);
@@ -959,8 +1113,8 @@ const App = () => {
         }
 
         .artwork-medium {
-          color: #f4d03f;
-          text-shadow: 1px 1px 5px rgba(0,0,0,0.8);
+          color: #d4af37;
+          text-shadow: 1px 1px 8px rgba(0,0,0,0.8);
           margin-bottom: 8px;
           font-size: clamp(1.1rem, 2.5vw, 1.4rem);
           font-weight: 400;
@@ -968,7 +1122,7 @@ const App = () => {
         }
 
         .artwork-size {
-          color: rgba(255,255,255,0.8);
+          color: rgba(255,255,255,0.7);
           font-size: clamp(0.9rem, 1.8vw, 1rem);
           letter-spacing: 0.05em;
           margin-bottom: 20px;
@@ -980,8 +1134,8 @@ const App = () => {
         }
 
         .content-description p {
-          color: rgba(255,255,255,0.95);
-          text-shadow: 1px 1px 5px rgba(0,0,0,0.8);
+          color: rgba(255,255,255,0.9);
+          text-shadow: 1px 1px 8px rgba(0,0,0,0.8);
           font-size: clamp(1rem, 2.2vw, 1.2rem);
           line-height: 1.6;
           font-weight: 300;
@@ -995,24 +1149,22 @@ const App = () => {
         }
 
         .technique-label {
-          color: #d4af37;
+          color: rgba(212, 175, 55, 0.7);
           font-size: 11px;
           letter-spacing: 0.1em;
           text-transform: uppercase;
           display: block;
           margin-bottom: 8px;
-          font-weight: 500;
         }
 
         .technique-description {
-          color: rgba(255,255,255,0.8);
+          color: rgba(255,255,255,0.7);
           font-size: clamp(0.9rem, 1.6vw, 1rem);
           font-style: italic;
           line-height: 1.4;
           font-weight: 300;
         }
 
-        /* Footer */
         .footer {
           background: linear-gradient(180deg, #0a0a0a 0%, #1a1612 50%, #0a0a0a 100%);
           padding: 120px 0 60px;
@@ -1099,7 +1251,7 @@ const App = () => {
           font-weight: 300;
         }
 
-        /* Mobile Responsive */
+        /* Mobile Responsive Design */
         @media (max-width: 768px) {
           .artist-name {
             top: 25px;
@@ -1113,33 +1265,16 @@ const App = () => {
 
           .image-wrapper {
             width: 95%;
-            height: 65%;
+            height: 70%;
           }
 
           .content-panel {
             bottom: 30px;
             width: 95%;
-            max-width: none;
           }
 
           .panel-inner {
             padding: 25px 30px;
-          }
-
-          .panel-backdrop {
-            opacity: 0.95;
-          }
-
-          .artwork-title {
-            font-size: clamp(1.8rem, 6vw, 2.5rem);
-          }
-
-          .artwork-medium {
-            font-size: clamp(1rem, 3vw, 1.2rem);
-          }
-
-          .content-description p {
-            font-size: clamp(0.9rem, 2.5vw, 1.1rem);
           }
 
           .footer-content {
@@ -1190,31 +1325,11 @@ const App = () => {
           }
 
           .image-wrapper {
-            height: 60%;
+            height: 65%;
           }
 
           .content-panel {
             bottom: 20px;
-          }
-
-          .artwork-title {
-            font-size: 1.8rem;
-          }
-
-          .artwork-medium {
-            font-size: 1rem;
-          }
-
-          .artwork-size {
-            font-size: 0.85rem;
-          }
-
-          .content-description p {
-            font-size: 0.9rem;
-          }
-
-          .technique-description {
-            font-size: 0.85rem;
           }
         }
 
@@ -1225,11 +1340,7 @@ const App = () => {
 
           .image-wrapper {
             width: 98%;
-            height: 55%;
-          }
-
-          .artwork-title {
-            font-size: 1.6rem;
+            height: 60%;
           }
         }
 
@@ -1254,26 +1365,15 @@ const App = () => {
         .image-container,
         .content-panel,
         .artwork-image,
-        .hero-title {
+        .hero-title,
+        .content-element {
           transform: translateZ(0);
           backface-visibility: hidden;
           -webkit-backface-visibility: hidden;
         }
-
-        /* Touch devices */
-        @media (hover: none) and (pointer: coarse) {
-          .cursor,
-          .cursor-follower {
-            display: none;
-          }
-          
-          * {
-            cursor: auto !important;
-          }
-        }
       `}</style>
 
-      <div className="main-container">
+      <div ref={mainRef} className="main-container">
         <CursorSystem />
         <ScrollProgress />
 
