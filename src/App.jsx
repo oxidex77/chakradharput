@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useLayoutEffect } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import Lenis from '@studio-freight/lenis';
 
 // Register GSAP plugins
 gsap.registerPlugin(ScrollTrigger);
@@ -64,38 +65,32 @@ const artPieces = [
 ];
 
 // Enhanced scroll progress
+// Enhanced scroll progress (Corrected)
 const ScrollProgress = () => {
   const [progress, setProgress] = useState(0);
   const [currentSection, setCurrentSection] = useState(0);
 
-  useEffect(() => {
-    let ticking = false;
-
-    const updateProgress = () => {
-      const scrolled = window.scrollY;
-      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-      const scrollProgress = Math.min((scrolled / maxScroll) * 100, 100);
-      setProgress(scrollProgress);
-      
-      const sectionHeight = window.innerHeight;
-      const currentSectionIndex = Math.floor(scrolled / sectionHeight);
-      setCurrentSection(Math.min(currentSectionIndex, artPieces.length));
-      
-      ticking = false;
-    };
-
-    const handleScroll = () => {
-      if (!ticking) {
-        requestAnimationFrame(updateProgress);
-        ticking = true;
+  useLayoutEffect(() => {
+    // This creates a ScrollTrigger instance that spans the entire page
+    const pageTrigger = ScrollTrigger.create({
+      start: 0, // Start at the very top
+      end: "max", // End at the very bottom
+      onUpdate: (self) => {
+        // 'self' is the ScrollTrigger instance with all the progress data
+        setProgress(self.progress * 100);
+        
+        const sectionHeight = window.innerHeight;
+        const scrolled = self.scroll();
+        const currentSectionIndex = Math.floor(scrolled / sectionHeight);
+        setCurrentSection(Math.min(currentSectionIndex, artPieces.length));
       }
-    };
+    });
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    updateProgress();
-    
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+    // Cleanup when the component unmounts
+    return () => {
+      if (pageTrigger) pageTrigger.kill();
+    };
+  }, []); // Empty dependency array ensures this runs only once
 
   return (
     <div className="scroll-system">
@@ -130,214 +125,169 @@ const ArtSection = ({ art, index }) => {
   const overlayRef = useRef(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const section = sectionRef.current;
     const imageContainer = imageContainerRef.current;
-    const image = imageRef.current;
     const content = contentRef.current;
     const overlay = overlayRef.current;
+    const contentElements = gsap.utils.toArray(content.querySelectorAll('.content-element'));
 
-    if (!section || !imageContainer || !image || !content || !overlay) return;
+    if (!section || !imageContainer || !content || !overlay) return;
 
-    // Advanced mouse parallax with momentum
-    let mouseX = 0;
-    let mouseY = 0;
-    let targetX = 0;
-    let targetY = 0;
-
-    const handleMouseMove = (e) => {
-      const rect = section.getBoundingClientRect();
-      targetX = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
-      targetY = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
-    };
-
-    const animateParallax = () => {
-      mouseX += (targetX - mouseX) * 0.05;
-      mouseY += (targetY - mouseY) * 0.05;
-      
-      gsap.set(imageContainer, {
-        x: mouseX * 15,
-        y: mouseY * 15,
-        rotationX: mouseY * 2,
-        rotationY: mouseX * 2,
-        transformPerspective: 1000,
-        transformOrigin: "center center"
-      });
-      
-      gsap.set(content, {
-        x: mouseX * 8,
-        y: mouseY * 8
-      });
-
-      requestAnimationFrame(animateParallax);
-    };
-
-    section.addEventListener('mousemove', handleMouseMove);
-    animateParallax();
-
-    // **ENHANCED SCROLL TRANSITIONS**
+    // Set initial states for elements to be animated
+    gsap.set(imageContainer, { autoAlpha: 0, scale: 0.8, y: 100 });
+    gsap.set(contentElements, { autoAlpha: 0, y: 80, scale: 0.9 });
     
-    // 1. Initial scale-up effect when scrolling starts
-    ScrollTrigger.create({
-      trigger: section,
-      start: 'top bottom',
-      end: 'top 70%',
-      scrub: 0.5,
-      onUpdate: (self) => {
-        const progress = self.progress;
-        // Image grows larger as it enters viewport
-        const scale = gsap.utils.interpolate(0.8, 1.15, progress);
-        const opacity = gsap.utils.interpolate(0, 1, progress);
-        
-        gsap.set(imageContainer, {
-          scale: scale,
-          opacity: opacity,
-          ease: 'power2.out'
-        });
-      }
-    });
+    // MatchMedia for responsive animations
+    let mm = gsap.matchMedia();
 
-    // 2. Dramatic scale and position transition during scroll
-    ScrollTrigger.create({
-      trigger: section,
-      start: 'top 70%',
-      end: 'bottom 30%',
-      scrub: 1,
-      onUpdate: (self) => {
-        const progress = self.progress;
-        
-        // More dramatic scaling: grows bigger first, then shrinks
-        const scale = progress < 0.3 
-          ? gsap.utils.interpolate(1.15, 1.4, progress / 0.3)  // Grow larger
-          : gsap.utils.interpolate(1.4, 0.6, (progress - 0.3) / 0.7); // Then shrink
-        
-        // Dynamic opacity with peak visibility
-        const opacity = progress < 0.5
-          ? gsap.utils.interpolate(1, 1, progress / 0.5)
-          : gsap.utils.interpolate(1, 0.2, (progress - 0.5) / 0.5);
-        
-        // Smooth Y translation with acceleration
-        const yTranslation = progress * progress * 200; // Quadratic easing
-        
-        // Rotation for depth effect
-        const rotation = progress * 15;
-        
-        gsap.set(imageContainer, {
-          scale: scale,
-          opacity: opacity,
-          y: yTranslation,
-          rotationX: rotation * 0.5,
-          z: progress * -300, // 3D depth
-          ease: 'none'
-        });
+    mm.add("(min-width: 769px)", () => {
+      // -- DESKTOP ANIMATIONS --
 
-        // Content moves independently for parallax depth
-        gsap.set(content, {
-          opacity: 1 - (progress * 1.2),
-          y: progress * 150,
-          scale: 1 - (progress * 0.3),
-          ease: 'none'
-        });
-
-        // Overlay effect for focus
-        gsap.set(overlay, {
-          opacity: progress * 0.7,
-          ease: 'none'
-        });
-      }
-    });
-
-    // 3. Exit transition - smooth fade out
-    ScrollTrigger.create({
-      trigger: section,
-      start: 'bottom 30%',
-      end: 'bottom top',
-      scrub: 0.8,
-      onUpdate: (self) => {
-        const progress = self.progress;
-        
-        gsap.set(imageContainer, {
-          scale: gsap.utils.interpolate(0.6, 0.3, progress),
-          opacity: gsap.utils.interpolate(0.2, 0, progress),
-          y: gsap.utils.interpolate(200, 400, progress),
-          rotationX: gsap.utils.interpolate(15, 45, progress),
-          z: gsap.utils.interpolate(-300, -800, progress),
-          ease: 'none'
-        });
-      }
-    });
-
-    // 4. Smooth entrance animation
-    ScrollTrigger.create({
-      trigger: section,
-      start: 'top 95%',
-      toggleActions: 'play none none reverse',
-      onEnter: () => {
-        const tl = gsap.timeline();
-        
-        // Reset transforms
-        gsap.set(imageContainer, {
-          scale: 0.8,
-          opacity: 0,
-          y: 100,
-          rotationX: 0,
-          rotationY: 0,
-          z: 0
-        });
-
-        gsap.set(content, {
-          opacity: 0,
-          y: 80,
-          scale: 0.9
-        });
-
-        // Animate in
-        tl.to(imageContainer, {
-          scale: 1.15,
-          opacity: 1,
-          y: 0,
-          duration: 2.5,
-          ease: 'power3.out'
-        })
-        .to(content, {
-          opacity: 1,
-          y: 0,
-          scale: 1,
-          duration: 2,
-          ease: 'power2.out'
-        }, '-=2');
-      }
-    });
-
-    // 5. Advanced content fade with stagger
-    ScrollTrigger.create({
-      trigger: section,
-      start: 'top 50%',
-      end: 'top 20%',
-      scrub: 1.5,
-      onUpdate: (self) => {
-        const progress = self.progress;
-        
-        // Staggered fade for content elements
-        const elements = content.querySelectorAll('.content-element');
-        elements.forEach((el, i) => {
-          const delay = i * 0.1;
-          const elementProgress = Math.max(0, Math.min(1, (progress - delay) / (1 - delay)));
-          
-          gsap.set(el, {
-            opacity: 1 - (elementProgress * 0.9),
-            y: elementProgress * 60,
-            scale: 1 - (elementProgress * 0.1),
-            ease: 'none'
+      // 1. Entrance Animation
+      ScrollTrigger.create({
+        trigger: section,
+        start: 'top 85%',
+        onEnter: () => {
+          gsap.to(imageContainer, {
+            autoAlpha: 1,
+            scale: 1.15,
+            y: 0,
+            duration: 2.5,
+            ease: 'power3.out'
           });
-        });
-      }
+          gsap.to(contentElements, {
+            autoAlpha: 1,
+            y: 0,
+            scale: 1,
+            duration: 2,
+            stagger: 0.1,
+            ease: 'power2.out',
+            delay: 0.5
+          });
+        },
+        onLeaveBack: () => {
+           gsap.to(imageContainer, { autoAlpha: 0, scale: 0.8, y: 100, duration: 1.5, ease: 'power3.in' });
+           gsap.to(contentElements, { autoAlpha: 0, y: 80, scale: 0.9, duration: 1.5, ease: 'power3.in' });
+        },
+        toggleActions: "play none none reverse"
+      });
+      
+      // 2. Main Scroll-driven Animation
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: section,
+          start: "top top",
+          end: "bottom top",
+          scrub: 1.5, // Smoothed out scrub
+        }
+      });
+
+      tl.to(imageContainer, {
+        scale: 0.6,
+        y: 200,
+        rotationX: 15,
+        z: -300,
+        ease: 'power1.inOut'
+      }, 0)
+      .to(content, {
+        opacity: 0,
+        y: 150,
+        scale: 0.8,
+        ease: 'power1.in'
+      }, 0)
+      .to(overlay, {
+        opacity: 0.7,
+        ease: 'none'
+      }, 0);
+
+      // 3. Mouse Parallax Effect
+      let mouseX = 0, mouseY = 0, targetX = 0, targetY = 0;
+      const handleMouseMove = (e) => {
+          const rect = section.getBoundingClientRect();
+          targetX = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+          targetY = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+      };
+      
+      const animateParallax = () => {
+          mouseX += (targetX - mouseX) * 0.05;
+          mouseY += (targetY - mouseY) * 0.05;
+          gsap.set(imageContainer, {
+              x: mouseX * 20, y: mouseY * 20,
+              rotationY: mouseX * 5, rotationX: -mouseY * 5,
+              transformPerspective: 1000,
+          });
+          requestAnimationFrame(animateParallax);
+      };
+      
+      section.addEventListener('mousemove', handleMouseMove);
+      animateParallax();
+
+      return () => {
+        section.removeEventListener('mousemove', handleMouseMove);
+      };
+    });
+
+    mm.add("(max-width: 768px)", () => {
+      // -- MOBILE ANIMATIONS (Simplified) --
+
+      // 1. Entrance Animation for Mobile
+       ScrollTrigger.create({
+        trigger: section,
+        start: 'top 90%',
+        onEnter: () => {
+          gsap.to(imageContainer, {
+            autoAlpha: 1,
+            scale: 1,
+            y: 0,
+            duration: 1.8,
+            ease: 'power2.out'
+          });
+          gsap.to(contentElements, {
+            autoAlpha: 1,
+            y: 0,
+            scale: 1,
+            duration: 1.5,
+            stagger: 0.05,
+            ease: 'power2.out',
+            delay: 0.3
+          });
+        },
+         onLeaveBack: () => {
+           gsap.to(imageContainer, { autoAlpha: 0, scale: 0.8, y: 50, duration: 1, ease: 'power2.in' });
+           gsap.to(contentElements, { autoAlpha: 0, y: 40, scale: 0.9, duration: 1, ease: 'power2.in' });
+        },
+        toggleActions: "play none none reverse"
+      });
+
+      // 2. Simplified Scroll-driven Animation for Mobile
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: section,
+          start: "top top",
+          end: "bottom top",
+          scrub: 2, // A bit more scrub for mobile
+        }
+      });
+
+      tl.to(imageContainer, {
+        scale: 0.7,
+        y: 100,
+        ease: 'power1.in'
+      }, 0)
+      .to(content, {
+        opacity: 0,
+        y: 80,
+        ease: 'power1.in'
+      }, 0);
     });
 
     return () => {
-      section.removeEventListener('mousemove', handleMouseMove);
+      mm.revert();
+      ScrollTrigger.getAll().forEach(trigger => trigger.kill());
     };
   }, []);
+
 
   const handleImageLoad = () => {
     setIsLoaded(true);
@@ -345,7 +295,6 @@ const ArtSection = ({ art, index }) => {
 
   return (
     <div ref={sectionRef} className="art-section">
-      {/* Enhanced image container with 3D transforms */}
       <div ref={imageContainerRef} className="image-container">
         <div className="image-wrapper">
           <div 
@@ -367,7 +316,6 @@ const ArtSection = ({ art, index }) => {
         </div>
       </div>
 
-      {/* Enhanced content panel with staggered elements */}
       <div ref={contentRef} className="content-panel">
         <div className="panel-inner">
           <div className="content-header content-element">
@@ -405,7 +353,7 @@ const HeroSection = () => {
   const bioRef = useRef(null);
   const scrollHintRef = useRef(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Entrance animation
     const tl = gsap.timeline({ delay: 0.8 });
     
@@ -443,36 +391,26 @@ const HeroSection = () => {
       '-=1.2'
     );
 
-    // Enhanced parallax with momentum
-    ScrollTrigger.create({
-      trigger: heroRef.current,
-      start: 'top top',
-      end: 'bottom top',
-      scrub: 0.5,
-      onUpdate: (self) => {
-        const progress = self.progress;
-        const easedProgress = gsap.utils.interpolate(0, 1, progress * progress);
-        
-        gsap.set(titleRef.current, {
-          y: easedProgress * 200,
-          opacity: 1 - (easedProgress * 1.5),
-          scale: 1 - (easedProgress * 0.3),
-          rotationX: easedProgress * 30,
-          ease: 'none'
-        });
-        
-        gsap.set([subtitleRef.current, bioRef.current], {
-          y: easedProgress * 120,
-          opacity: 1 - (easedProgress * 1.2),
-          scale: 1 - (easedProgress * 0.2),
-          ease: 'none'
-        });
-        
-        gsap.set(scrollHintRef.current, {
-          opacity: 1 - (easedProgress * 3),
-          y: easedProgress * 50,
-          ease: 'none'
-        });
+    // Parallax
+    gsap.to(titleRef.current, {
+      y: 200,
+      scale: 0.8,
+      opacity: 0,
+      scrollTrigger: {
+        trigger: heroRef.current,
+        start: 'top top',
+        end: 'bottom top',
+        scrub: 1.5
+      }
+    });
+     gsap.to([subtitleRef.current, bioRef.current, scrollHintRef.current], {
+      y: 150,
+      opacity: 0,
+      scrollTrigger: {
+        trigger: heroRef.current,
+        start: 'top top',
+        end: 'bottom top',
+        scrub: 1.5
       }
     });
   }, []);
@@ -527,23 +465,17 @@ const HeroSection = () => {
 const Footer = () => {
   const footerRef = useRef(null);
 
-  useEffect(() => {
-    ScrollTrigger.create({
-      trigger: footerRef.current,
-      start: 'top 80%',
-      toggleActions: 'play none none reverse',
-      onEnter: () => {
-        gsap.fromTo(footerRef.current.children,
-          { opacity: 0, y: 80, scale: 0.95 },
-          { 
-            opacity: 1, 
-            y: 0, 
-            scale: 1,
-            duration: 2.5, 
-            ease: 'power2.out',
-            stagger: 0.2
-          }
-        );
+  useLayoutEffect(() => {
+    gsap.from(footerRef.current.children, {
+      opacity: 0,
+      y: 80,
+      stagger: 0.2,
+      duration: 1.5,
+      ease: 'power2.out',
+      scrollTrigger: {
+        trigger: footerRef.current,
+        start: 'top 85%',
+        toggleActions: 'play none none reverse'
       }
     });
   }, []);
@@ -600,32 +532,23 @@ const CursorSystem = () => {
   const followerRef = useRef(null);
 
   useEffect(() => {
+    // Hide cursor on touch devices for better mobile experience
+    if ('ontouchstart' in window) {
+        if (cursorRef.current) cursorRef.current.style.display = 'none';
+        if (followerRef.current) followerRef.current.style.display = 'none';
+        return;
+    }
+    
     const cursor = cursorRef.current;
     const follower = followerRef.current;
     if (!cursor || !follower) return;
 
-    let mouseX = 0;
-    let mouseY = 0;
-    let cursorX = 0;
-    let cursorY = 0;
-
     const moveCursor = (e) => {
-      mouseX = e.clientX;
-      mouseY = e.clientY;
+      gsap.to(cursor, { x: e.clientX, y: e.clientY, duration: 0.1 });
+      gsap.to(follower, { x: e.clientX, y: e.clientY, duration: 0.3, ease: 'power2.out' });
     };
 
-    const animateCursor = () => {
-      cursorX += (mouseX - cursorX) * 0.1;
-      cursorY += (mouseY - cursorY) * 0.1;
-      
-      gsap.set(cursor, { x: mouseX, y: mouseY });
-      gsap.set(follower, { x: cursorX, y: cursorY });
-      
-      requestAnimationFrame(animateCursor);
-    };
-
-    document.addEventListener('mousemove', moveCursor, { passive: true });
-    animateCursor();
+    document.addEventListener('mousemove', moveCursor);
 
     return () => {
       document.removeEventListener('mousemove', moveCursor);
@@ -644,23 +567,36 @@ const CursorSystem = () => {
 const App = () => {
   const mainRef = useRef(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     gsap.config({ 
       force3D: true,
       nullTargetWarn: false
     });
     
-    // Smooth scrolling setup
-    gsap.registerPlugin(ScrollTrigger);
-    ScrollTrigger.normalizeScroll(true);
-    
-    document.body.style.scrollbarWidth = 'none';
-    document.body.style.msOverflowStyle = 'none';
+    // --- LENOIS SMOOTH SCROLL SETUP ---
+    const lenis = new Lenis({
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      smoothTouch: true,
+    });
 
+    lenis.on('scroll', ScrollTrigger.update);
+
+    gsap.ticker.add((time)=>{
+      lenis.raf(time * 1000);
+    });
+    
+    gsap.ticker.lagSmoothing(0);
+    // --- END LENOIS SETUP ---
+    
     return () => {
+      // Cleanup GSAP and Lenis on component unmount
       ScrollTrigger.getAll().forEach(trigger => trigger.kill());
+      gsap.ticker.remove(lenis.raf);
+      lenis.destroy();
     };
   }, []);
+
 
   return (
     <>
@@ -671,13 +607,31 @@ const App = () => {
           margin: 0;
           padding: 0;
           box-sizing: border-box;
-          cursor: none !important;
         }
 
+        /* Hide cursor for non-touch devices and let our custom cursor take over */
+        @media (hover: hover) and (pointer: fine) {
+          * {
+            cursor: none !important;
+          }
+        }
+        
         ::-webkit-scrollbar { display: none; }
 
         html {
-          scroll-behavior: auto;
+          scroll-behavior: auto; /* Let Lenis handle scroll behavior */
+        }
+
+        html.lenis {
+          height: auto;
+        }
+        
+        .lenis.lenis-smooth {
+          scroll-behavior: auto !important;
+        }
+        
+        .lenis.lenis-stopping iframe {
+          pointer-events: none;
         }
 
         html, body {
@@ -685,7 +639,6 @@ const App = () => {
           background-color: #0a0a0a;
           color: #ffffff;
           overflow-x: hidden;
-          cursor: none !important;
           line-height: 1.5;
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
@@ -934,13 +887,13 @@ const App = () => {
 
         @keyframes bounce {
           0%, 20%, 50%, 80%, 100% {
-            transform: translateX(-50%) translateY(0);
+            transform: translateY(0);
           }
           40% {
-            transform: translateX(-50%) translateY(-12px);
+            transform: translateY(-12px);
           }
           60% {
-            transform: translateX(-50%) translateY(-6px);
+            transform: translateY(-6px);
           }
         }
 
@@ -954,12 +907,11 @@ const App = () => {
           padding: 40px;
           perspective: 2000px;
           transform-style: preserve-3d;
+          overflow: hidden;
         }
 
         .image-container {
-          position: absolute;
-          top: 0;
-          left: 0;
+          position: relative;
           width: 100%;
           height: 100%;
           display: flex;
@@ -1057,10 +1009,11 @@ const App = () => {
           width: 90%;
           max-width: 650px;
           backdrop-filter: blur(30px);
+          -webkit-backdrop-filter: blur(30px);
           background: rgba(0,0,0,0.5);
           border-radius: 20px;
           border: 1px solid rgba(255,255,255,0.1);
-          will-change: transform;
+          will-change: transform, opacity;
           transform-style: preserve-3d;
         }
 
@@ -1169,6 +1122,8 @@ const App = () => {
           background: linear-gradient(180deg, #0a0a0a 0%, #1a1612 50%, #0a0a0a 100%);
           padding: 120px 0 60px;
           border-top: 1px solid rgba(212, 175, 55, 0.1);
+          position: relative;
+          z-index: 5;
         }
 
         .footer-content {
@@ -1261,16 +1216,34 @@ const App = () => {
 
           .art-section {
             padding: 20px;
+            height: 100vh;
+            display: block; /* Change flex to block to stack elements */
+            padding-top: 10vh;
           }
 
+          .image-container {
+            position: relative; /* Change from absolute for flow */
+            width: 100%;
+            height: 50%; /* Adjust height */
+            top: auto;
+            left: auto;
+          }
+          
           .image-wrapper {
             width: 95%;
-            height: 70%;
+            height: 100%;
           }
 
           .content-panel {
-            bottom: 30px;
-            width: 95%;
+            position: relative; /* Change from absolute */
+            bottom: auto;
+            left: auto;
+            transform: none;
+            width: 100%;
+            margin-top: -15%; /* Overlap the image slightly */
+            backdrop-filter: none; /* Can be heavy on mobile */
+            -webkit-backdrop-filter: none;
+            background: rgba(0,0,0,0.7);
           }
 
           .panel-inner {
@@ -1287,7 +1260,8 @@ const App = () => {
           }
 
           .scroll-system {
-            right: 20px;
+            right: 15px;
+            gap: 15px;
           }
 
           .progress-track {
@@ -1306,6 +1280,10 @@ const App = () => {
         @media (max-width: 480px) {
           .art-section {
             padding: 15px;
+            padding-top: 8vh;
+          }
+          .image-container {
+             height: 45%;
           }
 
           .panel-inner {
@@ -1323,53 +1301,23 @@ const App = () => {
           .content-technique {
             padding-top: 15px;
           }
-
-          .image-wrapper {
-            height: 65%;
-          }
-
-          .content-panel {
-            bottom: 20px;
-          }
         }
-
-        @media (max-width: 360px) {
-          .panel-inner {
-            padding: 18px 22px;
-          }
-
-          .image-wrapper {
-            width: 98%;
-            height: 60%;
-          }
-        }
-
+        
         /* Performance optimizations */
         @media (prefers-reduced-motion: reduce) {
           * {
             animation-duration: 0.01ms !important;
             animation-iteration-count: 1 !important;
             transition-duration: 0.01ms !important;
-          }
-          
-          .hint-arrow {
-            animation: none;
-          }
-
-          .particle {
-            animation: none;
+            scroll-behavior: auto !important;
           }
         }
 
-        /* GPU acceleration */
+        /* GPU acceleration hints */
         .image-container,
         .content-panel,
-        .artwork-image,
-        .hero-title,
-        .content-element {
+        .hero-title {
           transform: translateZ(0);
-          backface-visibility: hidden;
-          -webkit-backface-visibility: hidden;
         }
       `}</style>
 
@@ -1384,9 +1332,7 @@ const App = () => {
         <HeroSection />
 
         {artPieces.map((art, index) => (
-          <div key={index} data-section={index + 1}>
-            <ArtSection art={art} index={index} />
-          </div>
+          <ArtSection key={index} art={art} index={index} />
         ))}
 
         <Footer />
